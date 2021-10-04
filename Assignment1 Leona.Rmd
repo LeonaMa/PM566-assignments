@@ -4,8 +4,9 @@ author: "Leona Ma"
 output:
   github_document:
     df_print: paged
+    html_preview: false
+  html_document: default
 always_allow_html: yes
-
 ---
 
 ```{r setup, include=FALSE}
@@ -90,7 +91,7 @@ EDA <- rename(EDA, PM2.5 = `Daily Mean PM2.5 Concentration`, AQI = DAILY_AQI_VAL
 ```
 
 #Step3 Create a basic map in leaflet() that shows the locations of the sites (make sure to use different colors for each year). Summarize the spatial distribution of the monitoring sites.
-```{r}
+```{r, eval = knitr::is_html_output(excludes = "gfm")}
 library(leaflet)
 
 tem.pal <- colorFactor(topo.colors(4), domain = EDA$Years)
