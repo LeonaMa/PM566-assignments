@@ -1,0 +1,144 @@
+---
+title: "Assignment 2"
+output:
+  github_document:
+    html_preview: false
+  html_document: default
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Obejectives: conduct data wrangling and visualize the data with key questions in mind.
+
+#Part 1 Data Wrangling
+
+## Step1 reading and merging the data sets
+```{r reading and merging}
+library(data.table)
+library(dplyr)
+library(dtplyr)
+
+chs_ind <- data.table::fread("chs_individual.csv")
+chs_reg <- data.table::fread("chs_regional.csv")
+
+chs <- merge(chs_ind, chs_reg, by="townname")
+```
+The number of observations in chs and chs_ind is the same (1200), so there is no repeat data.
+
+##Step 2 creating new categorical varible "obesity_level and summarize"
+```{r creating var1}
+chs$obesity_level <- as.factor(ifelse(chs$bmi < 14, 'underweight',
+                               ifelse(chs$bmi < 22, 'normal', 
+                               ifelse(chs$bmi < 24, 'overweight','obese' ))))
+
+summary <- chs[,.(
+  minimum = min(bmi, na.rm=TRUE),
+  maximum = max(bmi, na.rm=TRUE),
+  total = length(bmi)), by=obesity_level]
+summary
+                            
+```
+
+##Step 3 Create another categorical variable "smoke_gas_exposure"
+```{r creating var2}
+chs[, smoke_gas_exposure := fifelse(smoke == 0 & gasstove == 0, "Neither",
+        fifelse(smoke == 0 & gasstove == 1, "gas_only",
+               fifelse(smoke == 1 & gasstove == 0, "smoke_only",
+                       fifelse(smoke == 1 & gasstove == 1, "both", NA_character_))))]
+#summarizing 
+chs[,.(total = length(smoke)), by=smoke_gas_exposure]
+```
+There is four categories and some missing values. 
+
+##Step 4 Create four summary tables showing the average (or proportion, if binary) and sd of “Forced expiratory volume in 1 second (ml)” and asthma indicator by town, sex, obesity level, and “smoke_gas_exposure.”
+```{r townname}
+chs[, .(
+    fev_avg_townname      = mean(fev, na.rm=TRUE),
+    fev_sd_townname       = sd(fev, na.rm=TRUE),
+    asthma_avg_townname   = mean(asthma, na.rm=TRUE),
+    asthma_sd_townname    = sd(asthma, na.rm=TRUE)),
+    by = townname
+    ] 
+```
+```{r sex}
+chs[, .(
+    fev_avg_sex      = mean(fev, na.rm=TRUE),
+    fev_sd_sex       = sd(fev, na.rm=TRUE),
+    asthma_avg_sex   = mean(asthma, na.rm=TRUE),
+    asthma_sd_sex    = sd(asthma, na.rm=TRUE)),
+    by = male
+    ] 
+```
+
+```{r obesity}
+chs[, .(
+    fev_avg_obesity      = mean(fev, na.rm=TRUE),
+    fev_sd_obesity       = sd(fev, na.rm=TRUE),
+    asthma_avg_obesity   = mean(asthma, na.rm=TRUE),
+    asthma_sd_obesity    = sd(asthma, na.rm=TRUE)),
+    by = obesity_level
+   ]
+```
+```{r smoke gas exposure}
+chs[, .(
+    fev_avg_smoke_gas_exposure      = mean(fev, na.rm=TRUE),
+    fev_sd_smoke_gas_exposure       = sd(fev, na.rm=TRUE),
+    asthma_avg_smoke_gas_exposure   = mean(asthma, na.rm=TRUE),
+    asthma_sd_smoke_gas_exposure    = sd(asthma, na.rm=TRUE)),
+    by = smoke_gas_exposure
+   ]
+```
+
+#Part 2 Looking at the Data (EDA)
+
+##Step1 Facet plot showing scatterplots with regression lines of BMI vs FEV by “townname”.
+```{r}
+library(tidyverse)
+ggplot(data=chs, mapping=aes(x = bmi, y = fev)) +
+  geom_point() + 
+  facet_wrap(~townname) +
+  geom_smooth(method='lm', formula = y~x)+
+  labs(title = "scatterplots of BMI vs FEV by townname", x="BMI", y="FEV")
+```
+
+##Step2 Stacked histograms of FEV by BMI category and FEV by smoke/gas exposure. Use different color schemes than the ggplot default.
+```{r}
+ggplot(data=chs) +
+  geom_histogram(aes(x=fev, fill=obesity_level), binwidth = 100)+
+  scale_fill_brewer(palette = "Spectral")
+  labs(title = "Stacked histograms of FEV by BMI", x="FEV")
+```
+```{r}
+ggplot(data=chs) +
+  geom_histogram(aes(x=fev, fill=smoke_gas_exposure), binwidth = 100)+
+  scale_fill_brewer(palette = "GnBul")+
+  labs(title = "Stacked histograms of FEV by smoke/gas exposure", x="FEV")
+```
+
+##Step3 Barchart of BMI by smoke/gas exposure.
+```{r}
+ggplot(data=chs) +
+  geom_bar(aes(x=obesity_level, fill=smoke_gas_exposure))+
+  scale_fill_brewer(palette = "Spectral")+
+  labs(title = "Barchart of BMI by smoke/gas exposure", x="BMI")
+  
+```
+
+##Step4 Statistical summary graphs of FEV by BMI and FEV by smoke/gas exposure category.
+```{r}
+
+```
+
+##Step5 A leaflet map showing the concentrations of PM2.5 mass in each of the CHS communities.
+```{r}
+
+```
+
+##Step6 Choose a visualization to examine whether PM2.5 mass is associated with FEV.
+```{r}
+
+```
+
