@@ -1,9 +1,13 @@
 ---
 title: "Assignment 2"
-output:
+author: "Leona Ma"
+date: "10/8/2021"
+output: 
+  html_document:
+    toc: yes 
+    toc_float: yes 
   github_document:
     html_preview: false
-  html_document: default
 always_allow_html: true
 ---
 
@@ -129,16 +133,34 @@ ggplot(data=chs) +
 
 ##Step4 Statistical summary graphs of FEV by BMI and FEV by smoke/gas exposure category.
 ```{r}
-
+ggplot(data=chs,mapping = aes(x = obesity_level, y = fev))+
+  geom_boxplot()+
+  labs(title = "statistical summary graph of FEV by BMI")
+```
+```{r}
+ggplot(data=chs,mapping = aes(x = smoke_gas_exposure, y = fev))+
+  geom_boxplot()+
+  labs(title = "statistical summary graph of FEV by smoke/gas exposure category")
 ```
 
 ##Step5 A leaflet map showing the concentrations of PM2.5 mass in each of the CHS communities.
 ```{r}
+library(leaflet)
 
+tem.pal <- colorNumeric(c('green','yellow','red'), domain=chs$pm25_mass)
+leaflet(chs) %>% 
+  addTiles() %>%
+  addCircles (lat = ~lat, lng = ~lon, color = ~tem.pal(pm25_mass),
+               label = ~pm25_mass, 
+               opacity=1, fillOpacity = 1, radius = 5000) %>%
+  addLegend('bottomleft', pal= tem.pal, values = chs$pm25_mass,
+             title ='concentrations of PM2.5 mass in each of the CHS communities',    opacity=1)
 ```
 
 ##Step6 Choose a visualization to examine whether PM2.5 mass is associated with FEV.
 ```{r}
-
+ggplot(data=chs, mapping=aes(x=pm25_mass, y=fev))+
+  geom_point()+
+  geom_smooth(method='lm', formula = y~x)
 ```
 
