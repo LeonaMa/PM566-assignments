@@ -3,11 +3,12 @@ title: "Assignment 2"
 author: "Leona Ma"
 date: "10/7/2021"
 output: 
-  html_document:
-    toc: yes 
-    toc_float: yes 
-  github_document:
-    html_preview: false
+    html_document:
+      toc: yes 
+      toc_float: yes
+      keep_md : yes 
+    github_document:
+      html_preview: false
 always_allow_html: true
 ---
 
@@ -17,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Obejectives: conduct data wrangling and visualize the data with key questions in mind.
 
-#Part 1 Data Wrangling
+# Part 1 Data Wrangling
 
 ## Step1 reading and merging the data sets
 ```{r reading and merging}
@@ -32,7 +33,7 @@ chs <- merge(chs_ind, chs_reg, by="townname")
 ```
 The number of observations in chs and chs_ind is the same (1200), so there is no repeat data.
 
-##Step 2 creating new categorical varible "obesity_level and summarize"
+## Step 2 creating new categorical varible "obesity_level and summarize"
 ```{r creating var1}
 chs$obesity_level <- as.factor(ifelse(chs$bmi < 14, 'underweight',
                                ifelse(chs$bmi < 22, 'normal', 
@@ -46,7 +47,7 @@ summary
                             
 ```
 
-##Step 3 Create another categorical variable "smoke_gas_exposure"
+## Step 3 Create another categorical variable "smoke_gas_exposure"
 ```{r creating var2}
 chs[, smoke_gas_exposure := fifelse(smoke == 0 & gasstove == 0, "Neither",
         fifelse(smoke == 0 & gasstove == 1, "gas_only",
@@ -57,7 +58,7 @@ chs[,.(total = length(smoke)), by=smoke_gas_exposure]
 ```
 There are four categories and some missing values. 
 
-##Step 4 Create four summary tables showing the average (or proportion, if binary) and sd of “Forced expiratory volume in 1 second (ml)” and asthma indicator by town, sex, obesity level, and “smoke_gas_exposure.”
+## Step 4 Create four summary tables showing the average (or proportion, if binary) and sd of “Forced expiratory volume in 1 second (ml)” and asthma indicator by town, sex, obesity level, and “smoke_gas_exposure.”
 ```{r townname}
 chs[, .(
     fev_avg_townname      = mean(fev, na.rm=TRUE),
@@ -96,7 +97,7 @@ chs[, .(
    ]
 ```
 
-#Part 2 Looking at the Data (EDA)
+# Part 2 Looking at the Data (EDA)
 
 ```{r}
 dim(chs)
@@ -109,7 +110,7 @@ summary(chs$smoke_gas_exposure)
 summary(chs$pm25_mass)
 ```
 
-##Step1 Facet plot showing scatterplots with regression lines of BMI vs FEV by “townname”.
+## Step1 Facet plot showing scatterplots with regression lines of BMI vs FEV by “townname”.
 ```{r}
 library(tidyverse)
 ggplot(data=chs, mapping=aes(x = bmi, y = fev)) +
@@ -121,7 +122,7 @@ ggplot(data=chs, mapping=aes(x = bmi, y = fev)) +
 
 From those figures we can see that BMI has a relatively positive association with FEV in all of these towns.
 
-##Step2 Stacked histograms of FEV by BMI category and FEV by smoke/gas exposure. Use different color schemes than the ggplot default.
+## Step2 Stacked histograms of FEV by BMI category and FEV by smoke/gas exposure. Use different color schemes than the ggplot default.
 ```{r}
 ggplot(data=chs) +
   geom_histogram(aes(x=fev, fill=obesity_level), binwidth = 100)+
@@ -132,7 +133,7 @@ ggplot(data=chs) +
 From this stacked histogram we can see that people who are underweight has a relatively low fev, and people who are overweight and obese has a relatively high fev. People with normal bmi has fev that concentrated on normal range. 
 
 ```{r}
-ggplot(data=chs) +
+ggplot(data=chs[-which(is.na(chs$smoke_gas_exposure)=="TRUE"),]) +
   geom_histogram(aes(x=fev, fill=smoke_gas_exposure), binwidth = 100)+
   scale_fill_brewer(palette = "GnBul")+
   labs(title = "Stacked histograms of FEV by smoke/gas exposure", x="FEV")
@@ -140,9 +141,9 @@ ggplot(data=chs) +
 
 This figure does not show different distributions among the categories. They all seem normally distributed. 
 
-##Step3 Barchart of BMI by smoke/gas exposure.
+## Step3 Barchart of BMI by smoke/gas exposure.
 ```{r}
-ggplot(data=chs) +
+ggplot(data=chs[-which(is.na(chs$obesity_level)=="TRUE"),]) +
   geom_bar(aes(x=obesity_level, fill=smoke_gas_exposure))+
   scale_fill_brewer(palette = "Spectral")+
   labs(title = "Barchart of BMI by smoke/gas exposure", x="BMI")
@@ -151,9 +152,9 @@ ggplot(data=chs) +
 
 This plot shows that the distribution of smoke/gas exposure is not different among the BMI categories. 
 
-##Step4 Statistical summary graphs of FEV by BMI and FEV by smoke/gas exposure category.
+## Step4 Statistical summary graphs of FEV by BMI and FEV by smoke/gas exposure category.
 ```{r}
-ggplot(data=chs,mapping = aes(x = obesity_level, y = fev))+
+ggplot(data=chs[-which(is.na(chs$obesity_level)=="TRUE"),],mapping = aes(x = obesity_level, y = fev))+
   geom_boxplot()+
   labs(title = "statistical summary graph of FEV by BMI")
 ```
@@ -161,14 +162,14 @@ ggplot(data=chs,mapping = aes(x = obesity_level, y = fev))+
 This figure gives similar information as the stacked histogram that people who are underweight has a relatively low fev, and people who are overweight and obese has a relatively high fev. People with normal bmi has fev that concentrated on normal range. 
 
 ```{r}
-ggplot(data=chs,mapping = aes(x = smoke_gas_exposure, y = fev))+
+ggplot(data=chs[-which(is.na(chs$smoke_gas_exposure)=="TRUE"),],mapping = aes(x = smoke_gas_exposure, y = fev))+
   geom_boxplot()+
   labs(title = "statistical summary graph of FEV by smoke/gas exposure category")
 ```
 
 This figure does not show different distributions among the categories.
 
-##Step5 A leaflet map showing the concentrations of PM2.5 mass in each of the CHS communities.
+## Step5 A leaflet map showing the concentrations of PM2.5 mass in each of the CHS communities.
 ```{r}
 library(leaflet)
 
@@ -183,7 +184,7 @@ leaflet(chs) %>%
 ```
 The mass of PM2.5 is concentrated around Riverside and San Bernardino region, and spread out to the sides. 
 
-##Step6 Choose a visualization to examine whether PM2.5 mass is associated with FEV.
+## Step6 Choose a visualization to examine whether PM2.5 mass is associated with FEV.
 ```{r}
 ggplot(data=chs, mapping=aes(x=pm25_mass, y=fev))+
   geom_point()+
