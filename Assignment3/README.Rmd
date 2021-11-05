@@ -1,0 +1,184 @@
+---
+title: "Assignment 3"
+author: "Leona Ma"
+date: "11/5/2021"
+output: 
+    html_document:
+      toc: yes 
+      toc_float: yes
+      keep_md : yes 
+    github_document:
+      html_preview: false
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(httr)
+library(xml2)
+library(stringr)
+library(tidytext)
+library(tidyverse)
+```
+# Part1 data scraping
+
+## Step1 How many papers were you able to find
+
+```{r}
+# Downloading the website
+website <- xml2::read_html("https://pubmed.ncbi.nlm.nih.gov/?term=sars-cov-2%20trial%20vaccine")
+
+# Finding the counts
+counts <- xml2::xml_find_first(website, "//*[@id='search-results']/div[2]/div[1]/div[1]/span")
+
+# Turning it into text
+# or xml2::xml_text(counts)
+counts <- as.character(counts)
+
+# Extracting the data using regex
+stringr::str_extract(counts, "[0-9,]+")
+```
+I found 2329 papers. 
+
+## Step2 retrieve the details of the paper
+```{r}
+query_ids <- GET(
+  url = "https://eutils.ncbi.nlm.nih.gov/",
+  path = "entrez/eutils/esearch.fcgi",
+  query = list(db = "pubmed",
+               term = "sars-cov-2 trial vaccine",
+               retmax = 10000)
+)
+ids <- httr::content(query_ids)
+
+# Turn the result into a character vector
+ids <- as.character(ids)
+
+# Find all the ids 
+ids <- stringr::str_extract_all(ids, "<Id>[[:digit:]]+</Id>")[[1]]
+
+# Remove all the leading and trailing <Id> </Id>. Make use of "|"
+ids <- stringr::str_remove_all(ids, "<Id>|</Id>")
+head(ids)
+```
+
+## Step3 download each papers’ details using the query parameter rettype = abstract
+```{r}
+publications <- GET(
+  url   = "https://eutils.ncbi.nlm.nih.gov/",
+  path = "entrez/eutils/efetch.fcgi",
+  query = list(
+    db = "pubmed",
+    id = I(paste(ids[1:250], collapse=",")),
+    rettype = "abstract"
+    )
+)
+
+# Turning the output into character vector
+publications <- httr::content(publications)
+publications_txt <- as.character(publications)
+```
+
+## Step4 Create a dataset
+```{r}
+pub_char_list <- xml2::xml_children(publications)
+pub_char_list <- sapply(pub_char_list, as.character)
+
+#Title of the paper
+title <- str_extract(pub_char_list, "<ArticleTitle>[[:print:][:space:]]+</ArticleTitle>")
+title <- str_remove_all(titles, "</?[[:alnum:]- =\"]+>")
+
+#Name of the journal where it was published
+journalnames <- str_extract(pub_char_list, "<Title>[[:print:][:space:]]+</Title>")
+journalnames <- str_remove_all(journals, "</?[[:alnum:]- =\"]+>")
+
+#Publication date
+date <- str_extract(pub_char_list, "<PubDate>[[:print:][:space:]]+</PubDate>")
+date <- str_remove_all(date, "</?[[:alnum:]]+>")
+date <- str_replace_all(date, "\\s+", " ")
+
+# abstract
+abstracts <- str_extract(pub_char_list, "<Abstract>[[:print:][:space:]]+</Abstract>")
+abstracts <- str_remove_all(abstracts, "</?[[:alnum:]- =\"]+>") # '</?[[:alnum:]- ="]+>'
+abstracts <- str_replace_all(abstracts, "[[:space:]]+", " ")
+
+database <- data.frame(
+  PubMedId = ids[1:250],
+  Title    = title,
+  Journal  = journalnames,
+  Date     = date,
+  Abstract = abstracts
+)
+
+knitr::kable(database[1:10,], caption = "papers about sars-cov-2 trial vaccine")
+
+```
+
+# Part2 Text mining
+
+## Step1 Import data
+```{r}
+pubmed <- "pubmend.csv"
+if (!file.exists(pubmed))
+  download.file("https://raw.githubusercontent.com/USCbiostats/data-science-data/master/03_pubmed/pubmed.csv", destfile = pubmed)
+
+pubmed <- read.csv(pubmed)
+pubmed <- as_tibble(pubmed)
+```
+
+## Step2 Tokenize the abstracts and count the number of each token
+```{r} 
+# Before removal of stop words
+pubmed %>%
+  unnest_tokens(token, abstract) %>%
+  count(token, sort = TRUE)
+# After removal of stop words
+pubmed %>%
+  unnest_tokens(token, abstract) %>%
+  anti_join(stop_words, by = c("token" = "word")) %>%
+  group_by(term) %>%
+  count(token, sort = TRUE)%>%
+  top_n(5,n)%>%
+  ggplot(aes(x=token,y=n))+
+  facet_wrap(~term) +
+  geom_col()+
+  coord_flip()
+```
+
+Before removal of the stop words, the words that appear most frequency are "the", "of", "and" and so on, which barely give us information about these abstracts. After removal of the stop words, we can see from the plot that the frequently appeared words are "covid", "preeclampsia", "prostate" and so on, which are much more clear and informative. But there is a problem that "covid" and "19" are split up, which is why we need to tokenize the abstracts into bigrams next step. 
+
+## Step3 Tokenize the abstracts into bigrams
+```{r}
+bigrams <-pubmed %>%
+  unnest_ngrams(ngram, abstract, n = 2) %>%
+  separate(ngram, into = c("word1", "word2"), sep = " ") %>%
+  select(word1, word2) %>%
+  anti_join(stop_words, by = c("word1" = "word")) %>%
+  anti_join(stop_words, by = c("word2" = "word")) %>%
+  count(word1, word2, sort = TRUE) %>%
+  top_n(10, n)
+  unite(bigrams, "ngram", c("word1", "word2"), sep = " ") %>%
+  ggplot(aes(x = n, y = fct_reorder(ngram, n))) +
+  geom_col()+
+  labs(title = "the 10 most common bigram after removal of the stop words")
+```
+
+We learned form step2 that excluding stop words can make our text mining get more information. Thus, I remove the stop words directly during this step. 
+
+## Step4 Calculate the TF-IDF value for each word-search term combination
+```{r}
+pubmed %>%
+  unnest_tokens(token, abstract) %>%
+  count(term, token, sort = TRUE) %>%
+  bind_tf_idf(token, term, n) %>%
+  group_by(term) %>%
+  top_n(5, tf_idf) %>%
+  arrange(desc(tf_idf), .by_group = TRUE) %>%
+  select(term, token, n, tf_idf, tf, idf) %>% 
+  knitr::kable(caption="the 5 tokens from each search term with the highest TF-IDF value")
+```
+
+As we can see form the table, the 5 words with the highest TF-IDF value in each search term provide even more information compared to question1 (step2). In question1, we still got some words that are very common in medical field, like "woman", "treatment", "disease", which actually still gave us limited information. In this question, the words with highest TF-IDF value are more informative. 
