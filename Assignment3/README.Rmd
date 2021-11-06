@@ -41,7 +41,7 @@ counts <- as.character(counts)
 # Extracting the data using regex
 stringr::str_extract(counts, "[0-9,]+")
 ```
-I found 2329 papers. 
+I found 2336 papers. 
 
 ## Step2 retrieve the details of the paper
 ```{r}
@@ -50,7 +50,7 @@ query_ids <- GET(
   path = "entrez/eutils/esearch.fcgi",
   query = list(db = "pubmed",
                term = "sars-cov-2 trial vaccine",
-               retmax = 10000)
+               retmax = 250)
 )
 ids <- httr::content(query_ids)
 
@@ -72,7 +72,8 @@ publications <- GET(
   path = "entrez/eutils/efetch.fcgi",
   query = list(
     db = "pubmed",
-    id = I(paste(ids[1:250], collapse=",")),
+    id = I(paste(ids, collapse=",")),
+    retmax = 250,
     rettype = "abstract"
     )
 )
@@ -89,11 +90,11 @@ pub_char_list <- sapply(pub_char_list, as.character)
 
 #Title of the paper
 title <- str_extract(pub_char_list, "<ArticleTitle>[[:print:][:space:]]+</ArticleTitle>")
-title <- str_remove_all(titles, "</?[[:alnum:]- =\"]+>")
+title <- str_remove_all(title, "</?[[:alnum:]- =\"]+>")
 
 #Name of the journal where it was published
 journalnames <- str_extract(pub_char_list, "<Title>[[:print:][:space:]]+</Title>")
-journalnames <- str_remove_all(journals, "</?[[:alnum:]- =\"]+>")
+journalnames <- str_remove_all(journalnames, "</?[[:alnum:]- =\"]+>")
 
 #Publication date
 date <- str_extract(pub_char_list, "<PubDate>[[:print:][:space:]]+</PubDate>")
@@ -113,7 +114,7 @@ database <- data.frame(
   Abstract = abstracts
 )
 
-knitr::kable(database[1:10,], caption = "papers about sars-cov-2 trial vaccine")
+knitr::kable(database[1:10,], caption = "articles about sars-cov-2 trial vaccine")
 
 ```
 
@@ -145,7 +146,8 @@ pubmed %>%
   ggplot(aes(x=token,y=n))+
   facet_wrap(~term) +
   geom_col()+
-  coord_flip()
+  coord_flip() +
+  labs(title = "the 5 most common words in each term after removal of the stop words")
 ```
 
 Before removal of the stop words, the words that appear most frequency are "the", "of", "and" and so on, which barely give us information about these abstracts. After removal of the stop words, we can see from the plot that the frequently appeared words are "covid", "preeclampsia", "prostate" and so on, which are much more clear and informative. But there is a problem that "covid" and "19" are split up, which is why we need to tokenize the abstracts into bigrams next step. 
