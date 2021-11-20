@@ -73,8 +73,8 @@ microbenchmark::microbenchmark(
 ```
 ## Unit: relative
 ##          expr      min       lq     mean   median       uq      max neval
-##     fun1(dat) 9.496127 12.11795 9.936114 12.62689 12.99239 1.375791   100
-##  fun1alt(dat) 1.000000  1.00000 1.000000  1.00000  1.00000 1.000000   100
+##     fun1(dat) 11.09774 11.51789 11.30019 12.31668 15.58145 1.807565   100
+##  fun1alt(dat)  1.00000  1.00000  1.00000  1.00000  1.00000 1.000000   100
 ```
 
 ```r
@@ -88,7 +88,7 @@ microbenchmark::microbenchmark(
 ```
 ## Unit: relative
 ##          expr      min       lq     mean   median       uq      max neval
-##     fun2(dat) 3.941492 2.705127 2.072749 2.607501 1.985775 1.310076   100
+##     fun2(dat) 4.227443 2.490708 2.234917 2.537937 2.201552 1.207165   100
 ##  fun2alt(dat) 1.000000 1.000000 1.000000 1.000000 1.000000 1.000000   100
 ```
 
@@ -130,7 +130,7 @@ system.time({
 
 ```
 ##    user  system elapsed 
-##   5.623   1.573   8.115
+##   6.101   1.794  10.120
 ```
 
 Rewrite the previous code using parLapply() to make it run faster. Make sure you set the seed using clusterSetRNGStream():
@@ -151,7 +151,7 @@ system.time({
 
 ```
 ##    user  system elapsed 
-##   0.010   0.002   3.165
+##   0.009   0.001   3.298
 ```
 
 ```r
