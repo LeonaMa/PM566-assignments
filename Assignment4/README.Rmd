@@ -1,0 +1,219 @@
+---
+title: "Assignment 4"
+author: "Leona Ma"
+date: "11/19/2021"
+output: 
+    html_document:
+      toc: yes 
+      toc_float: yes
+      keep_md : yes 
+    github_document:
+      html_preview: false
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(parallel)
+```
+
+# Part1 HPC
+
+## Problem 1: Make sure your code is nice
+
+```{r}
+# Total row sums
+fun1 <- function(mat) {
+  n <- nrow(mat)
+  ans <- double(n) 
+  for (i in 1:n) {
+    ans[i] <- sum(mat[i, ])
+  }
+  ans
+}
+
+fun1alt <- function(mat) {
+  ans <- rowSums(mat)
+  ans
+}
+
+# Cumulative sum by row
+fun2 <- function(mat) {
+  n <- nrow(mat)
+  k <- ncol(mat)
+  ans <- mat
+  for (i in 1:n) {
+    for (j in 2:k) {
+      ans[i,j] <- mat[i, j] + ans[i, j - 1]
+    }
+  }
+  ans
+}
+
+fun2alt <- function(mat) {
+  ans <- t(apply(mat, 1, cumsum))
+  ans
+}
+
+
+# Use the data with this code
+set.seed(2315)
+dat <- matrix(rnorm(200 * 100), nrow = 200)
+
+# Test for the first
+microbenchmark::microbenchmark(
+  fun1(dat),
+  fun1alt(dat), unit = "relative", check = "equivalent"
+)
+
+# Test for the second
+microbenchmark::microbenchmark(
+  fun2(dat),
+  fun2alt(dat), unit = "relative", check = "equivalent"
+)
+```
+
+The code we wrote do get faster. 
+
+## Problem 2: Make things run faster with parallel computing
+
+The following function allows simulating PI
+```{r}
+sim_pi <- function(n = 1000, i = NULL) {
+  p <- matrix(runif(n*2), ncol = 2)
+  mean(rowSums(p^2) < 1) * 4
+}
+
+# Here is an example of the run
+set.seed(156)
+sim_pi(1000) # 3.132
+```
+
+In order to get accurate estimates, we can run this function multiple times, with the following code:
+```{r}
+# This runs the simulation a 4,000 times, each with 10,000 points
+set.seed(1231)
+system.time({
+  ans <- unlist(lapply(1:4000, sim_pi, n = 10000))
+  print(mean(ans))
+})
+```
+
+Rewrite the previous code using parLapply() to make it run faster. Make sure you set the seed using clusterSetRNGStream():
+
+```{r}
+cl <- makePSOCKcluster(4L)
+clusterSetRNGStream(cl,1231)
+system.time({
+  ans <- unlist(parLapply(cl, rep(4000,10000),sim_pi))
+  print(mean(ans))
+})
+```
+```{r}
+stopCluster(cl)
+```
+
+The code we wrote do get faster. 
+
+# Part2 SQL
+
+Setup a temporary database by running the following chunk
+```{r}
+# install.packages(c("RSQLite", "DBI"))
+
+library(RSQLite)
+library(DBI)
+
+# Initialize a temporary in memory database
+con <- dbConnect(SQLite(), ":memory:")
+
+# Download tables
+film <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/film.csv")
+film_category <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/film_category.csv")
+category <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/category.csv")
+
+# Copy data.frames to database
+dbWriteTable(con, "film", film)
+dbWriteTable(con, "film_category", film_category)
+dbWriteTable(con, "category", category)
+```
+
+## Question 1
+How many many movies is there available in each rating category.
+```{r}
+dbGetQuery(con, "
+SELECT rating,
+  COUNT(*) AS 'N movies'
+FROM film
+GROUP BY rating")
+```
+
+## Question 2
+What is the average replacement cost and rental rate for each rating category.
+
+```{r}
+dbGetQuery(con, "
+SELECT rating,
+  AVG(replacement_cost) AS avg_replacement_cost,
+  AVG(rental_rate) AS avg_rental_tate
+FROM film
+GROUP BY rating")
+```
+
+## Question 3
+Use table film_category together with film to find the how many films there are with each category ID
+
+```{r}
+combine <- dbGetQuery(con, "
+SELECT film.film_id, category_id
+FROM film
+LEFT JOIN film_category
+ON film_category.film_id = film.film_id")
+
+dbWriteTable(con, "combine", combine)
+
+category_movie <- dbGetQuery(con, "
+SELECT category_id,
+  COUNT(*) AS 'N movies'
+FROM combine
+GROUP BY category_id")
+
+dbGetQuery(con, "
+SELECT category_id,
+  COUNT(*) AS 'N movies'
+FROM combine
+GROUP BY category_id
+LIMIT 10")
+
+dbWriteTable(con, "category_movie", category_movie)
+```
+
+Since there are 2 film in film table do not have corresponding category ID in film_category table, there is a category NA with 2 observations. 
+
+## Question 4
+Incorporate table category into the answer to the previous question to find the name of the most popular category.
+
+```{r}
+combine2 <- dbGetQuery(con, "
+SELECT category_movie.category_id, category_movie.`N movies`, name
+FROM category_movie
+LEFT JOIN category
+ON category_movie.category_id = category.category_id")
+
+dbWriteTable(con, "combine2", combine2)
+
+dbGetQuery(con, "
+SELECT category_id,name,
+ max(`N movies`) as max
+FROM combine2")
+```
+
+Sports is the most popular category. 
+
+```{r}
+dbDisconnect(con)
+```
+

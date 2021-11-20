@@ -1,0 +1,161 @@
+---
+title: "PM566-assignment1"
+author: "Leona Ma"
+output:
+  github_document:
+    df_print: paged
+always_allow_html: yes
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Step1 Given the formulated question from the assignment description, you will now conduct EDA Checklist items 2-4. First, download 2004 and 2019 data for all sites in California from the EPA Air Quality Data website. Read in the data using data.table(). For each of the two datasets, check the dimensions, headers, footers, variable names and variable types. Check for any data issues, particularly in the key variable we are analyzing. Make sure you write up a summary of all of your findings.
+
+## Reading in the datas
+```{r reading in}
+library(data.table)
+library(tidyverse)
+
+EDA04 <- data.table::fread("2004.csv")
+EDA19 <- data.table::fread("2019.csv")
+```
+
+## Checking dimentions
+```{r dimentions}
+dim(EDA04)
+dim(EDA19)
+```
+## Checking headers
+```{r headers}
+head(EDA04)
+head(EDA19)
+```
+## Checking footers
+```{r footers}
+tail(EDA04)
+tail(EDA19)
+```
+##Checking variable names and variables types
+```{r var name and types}
+str(EDA04)
+str(EDA19)
+```
+##Checking key variables
+```{r key 04}
+summary(EDA04$`Daily Mean PM2.5 Concentration`)
+summary(EDA04$DAILY_AQI_VALUE)
+```
+```{r key 19}
+summary(EDA19$`Daily Mean PM2.5 Concentration`)
+summary(EDA19$DAILY_AQI_VALUE)
+```
+
+There is a data issue, which is that some values in "Daily Mean PM2.5 Concentration" data from both years are less than 0. 
+
+```{r deleting}
+EDA_04 <- EDA04[`Daily Mean PM2.5 Concentration` >0]
+EDA_19 <- EDA19[`Daily Mean PM2.5 Concentration` >0]
+```
+##Getting summary statistics of data
+```{r summary 04}
+summary(EDA_04$`Daily Mean PM2.5 Concentration`)
+summary(EDA_04$DAILY_AQI_VALUE)
+```
+After deleting implausible values, the minimum value of daily mean PM2.5 concentration in 2004 is 0.10 ug/m3 LC, and the maximum value is 251.00 ug/m3 LC. The minimum daily AQI value is 0.00 in 2004, and the maximun value is 301.00.
+
+```{r summary 19}
+summary(EDA_19$`Daily Mean PM2.5 Concentration`)
+summary(EDA_19$DAILY_AQI_VALUE)
+```
+After deleting implausible values, the minimum value of daily mean PM2.5 concentration in 2019 is 0.10 ug/m3 LC, and the maximum value is 120.90 ug/m3 LC. The minimum daily AQI value is 0.00 in 2019, and the maximum value is 185.00.
+
+According to the decrease of maximum value of daily mean PM2.5 concentration and daily AQI value from 2004 to 2019, we can have a basic idea that air pollution had been improved a lot in these 15 years. 
+
+#Step2 Combine the two years of data into one data frame. Use the Date variable to create a new column for year, which will serve as an identifier. Change the names of the key variables so that they are easier to refer to in your code.
+
+##Combine the two years of data into one data frame
+```{r data combination}
+EDA <- rbind(EDA04, EDA19)
+```
+##Creating new column
+```{r new col}
+EDA$Years <- format(as.POSIXct(EDA$Date, format = "%m/%d/%Y"), format = "%Y")
+```
+##Rename key variables
+```{r rename}
+EDA <- rename(EDA, PM2.5 = `Daily Mean PM2.5 Concentration`, AQI = DAILY_AQI_VALUE)
+```
+
+#Step3 Create a basic map in leaflet() that shows the locations of the sites (make sure to use different colors for each year). Summarize the spatial distribution of the monitoring sites.
+```{r}
+library(leaflet)
+
+tem.pal <- colorFactor(topo.colors(4), domain = EDA$Years)
+leaflet(EDA) %>% 
+  addTiles() %>%
+  addCircles (lat = ~SITE_LATITUDE, lng = ~SITE_LONGITUDE, color = ~tem.pal(Years),
+               label = ~Years, 
+               opacity=0.01, fillOpacity = 0.01, radius = 500) %>%
+  addLegend('bottomleft', pal= tem.pal, values = EDA$Years,
+             title ='years', opacity=1)
+   
+```
+summary:According to the plot, the sites are overlapped with each other in 2004 and 2019. So, the detections happened basically in the same places. 
+
+#Step4 Check for any missing or implausible values of PM in the combined dataset. Explore the proportions of each and provide a summary of any temporal patterns you see in these observations.
+
+
+```{r}
+mean(is.na(EDA$PM2.5))
+mean(EDA$PM2.5<0)
+```
+
+There is no missing value in this dataset. There are some implausible values that are negative, which have a proportion of 0.4%. 
+
+#Step5 Explore the main question of interest at three different spatial levels. Create exploratory plots (e.g. boxplots, histograms, line plots) and summary statistics that best suit each level of data. Be sure to write up explanations of what you observe in these data.
+```{r}
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+```
+
+##state
+```{r}
+ggplot(EDA)+
+  geom_boxplot(mapping=(aes(x=Years, y=PM2.5)))
+```
+```{r}
+ggplot(EDA)+
+  geom_histogram(mapping=(aes(x=PM2.5, color=Years)), breaks=seq(0, 80, by=3))
+```
+
+##county
+```{r}
+library(dplyr)
+county <- group_by(EDA, Years, COUNTY) %>% summarize(PM2.5 = mean(PM2.5, na.rm = TRUE))
+
+qplot(xyear, PM2.5, data = mutate(county, xyear = as.numeric(as.character(Years))), 
+       color = factor(COUNTY), 
+       geom = c("point", "line"))
+```
+
+county<- group_by(pm2.5, year, COUNTY) %>% summarize(pm25 = mean(pm25, na.rm = TRUE))
+qplot(xyear, pm25, data = mutate(county, xyear = as.numeric(as.character(year))), 
+    color = factor(COUNTY), 
+    geom = c("point", "line"))
+##site in Los Angeles
+```{r}
+
+LA<- EDA[COUNTY_CODE == 37]
+sites<- group_by(LA, Years, "Site Name") %>% summarize(PM2.5 = mean(PM2.5, na.rm = TRUE))
+qplot(xyear, PM2.5, data = mutate(sites, xyear = as.numeric(as.character(Years))), 
+    color = factor("Site Name"), 
+    geom = c("point", "line"))
+```
+
+Overall, from all of this levels, we can see that the daily mean value of PM2.5 has been decreased a lot. 
+
+
